@@ -1,0 +1,13 @@
+openai
+openai-agents
+openinference-instrumentation-openai-agents
+arize-otel
+arize
+sounddevice
+numpy
+pandas
+python-dotenv
+httpx
+anthropic
+openinference-instrumentation-anthropic
+openinference-instrumentation-openai
