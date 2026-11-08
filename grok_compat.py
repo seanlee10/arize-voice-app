@@ -67,6 +67,23 @@ def normalize_grok_event(event: Any) -> Any | None:
     return e
 
 
+def normalize_status_details(event: Any) -> Any:
+    """비표준 서버가 response.status_details를 문자열(예: 'unimplemented')로 보내면 None으로 바꾼다."""
+    if not isinstance(event, dict) or event.get("type") not in ("response.created", "response.done"):
+        return event
+    resp = event.get("response")
+    if isinstance(resp, dict) and isinstance(resp.get("status_details"), str):
+        return {**event, "response": {**resp, "status_details": None}}
+    return event
+
+
+class TolerantRealtimeModel(OpenAIRealtimeWebSocketModel):
+    """OpenAI 프로바이더용: status_details 문자열만 허용하도록 최소 정규화."""
+
+    async def _handle_ws_event(self, event: dict[str, Any]):
+        await super()._handle_ws_event(normalize_status_details(event))
+
+
 class GrokRealtimeModel(OpenAIRealtimeWebSocketModel):
     async def _handle_ws_event(self, event: dict[str, Any]):
         fixed = normalize_grok_event(event)

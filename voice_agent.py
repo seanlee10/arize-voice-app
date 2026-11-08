@@ -74,6 +74,9 @@ def build_runner(provider: str, tts: str = "native") -> tuple["RealtimeRunner", 
     if cfg["model"] == "grok":
         from grok_compat import GrokRealtimeModel  # Grok 이벤트 형태를 OpenAI 스키마로 정규화
         model = GrokRealtimeModel()
+    else:
+        from grok_compat import TolerantRealtimeModel  # status_details 문자열 허용
+        model = TolerantRealtimeModel()
     runner = RealtimeRunner(
         agent, model=model,
         config={"model_settings": settings} if settings else None,
