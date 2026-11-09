@@ -111,7 +111,8 @@ def main():
     if df.empty or "attributes.openinference.span.kind" not in df.columns:
         sys.exit("스팬이 아직 없습니다. Arize 수집 지연일 수 있으니 1~2분 후 다시 실행하세요.")
 
-    user_spans = df[df["attributes.openinference.span.kind"] == "USER"]
+    # 사용자 발화 구간 = "user" 스팬
+    user_spans = df[(df["attributes.openinference.span.kind"] == "USER") & (df["name"] == "user")]
     print(f"{len(user_spans)} user spans to evaluate")
 
     rows = []

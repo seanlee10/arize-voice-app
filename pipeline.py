@@ -7,14 +7,14 @@ Realtime API 대신 단계별 API를 조합하는 구성. LLM 호출은 OpenInfe
 트레이스 (턴마다):
   AUDIO "conversation.turn"     ← 입력/출력 텍스트, 단계별 지연시간
   ├─ USER  "user"               ← 사용자 음성(재생 가능) + 전사   (발화 시작~끝 시간)
-  ├─ CHAIN "stt.<provider>"     ← STT 모델, 지연시간
+  ├─ CHAIN "stt.<provider>"     ← STT 모델, 처리 시간 (오디오는 위 USER 스팬에만)
   ├─ LLM   (자동 계측)           ← 프롬프트/응답/토큰
   ├─ TOOL  "<tool_name>"        ← 툴 인자/결과
   └─ LLM   "tts.<provider>"     ← 생성된 음성(재생 가능), 보이스/모델, 첫 바이트 지연
                                   (Arize는 출력 오디오를 LLM 스팬에서만 재생 UI로 표시)
 
 실행:
-  .venv/bin/python pipeline.py                                   # xAI STT → Grok → xAI TTS
+  .venv/bin/python pipeline.py                                   # STT/TTS: ElevenLabs 키가 있으면 ElevenLabs, 없으면 xAI
   .venv/bin/python pipeline.py --llm claude                      # LLM만 Claude로
   .venv/bin/python pipeline.py --stt elevenlabs --tts elevenlabs --llm claude
   .venv/bin/python pipeline.py --turns 3
@@ -294,6 +294,7 @@ async def handle_turn(utt: dict, stt, llm, tts, play) -> None:
             })
 
             t0 = time.monotonic_ns()
+            # STT 스팬: 처리 시간·모델만 기록. 오디오·전사는 바로 위 USER 스팬에 있으므로 중복하지 않는다
             with tracer.start_as_current_span(f"stt.{stt.provider}", attributes={
                 "openinference.span.kind": "CHAIN", "stt.provider": stt.provider, "stt.model": stt.model,
                 "stt.audio_duration_s": len(pcm) / 2 / SAMPLE_RATE,
@@ -327,9 +328,10 @@ async def handle_turn(utt: dict, stt, llm, tts, play) -> None:
 
 
 async def speak(text: str, tts, play, turn, speech_end_mono: int) -> None:
-    # Arize UI는 output.audio.url을 LLM 스팬에서만 플레이어로 렌더링 → TTS 스팬도 LLM 종류로 기록
+    # Arize UI는 output.audio.url을 LLM 스팬에서만 플레이어로 렌더링 → TTS 스팬도 LLM 종류로 기록.
+    # 또한 input.value/output.value가 있으면 텍스트 뷰가 우선되므로 오디오 속성만 남긴다.
     with tracer.start_as_current_span(f"tts.{tts.provider}", attributes={
-        "openinference.span.kind": "LLM", "input.value": text,
+        "openinference.span.kind": "LLM",
         "llm.provider": tts.provider, "llm.model_name": tts.model or f"{tts.provider}-tts",
         "tts.provider": tts.provider, "tts.voice": tts.voice,
     }) as span:
@@ -364,7 +366,7 @@ async def speak(text: str, tts, play, turn, speech_end_mono: int) -> None:
         span.set_attribute("output.audio.url", audio_uri(pcm))
         span.set_attribute("output.audio.mime_type", "audio/wav")
         span.set_attribute("output.audio.transcript", text)
-        span.set_attribute("output.value", text)
+        # input.value/output.value를 넣으면 Arize가 오디오 플레이어 대신 텍스트 뷰를 보여줌 → 생략
 
 
 # ── 마이크 + 에너지 기반 VAD (반이중: 응답 중엔 마이크 무시 → 스피커 에코 방지) ───
@@ -442,9 +444,11 @@ async def run(args) -> list[tuple[int, bytes]]:
 
 def main():
     p = argparse.ArgumentParser(description="STT → LLM → TTS 파이프라인 음성 에이전트")
-    p.add_argument("--stt", choices=["xai", "elevenlabs"], default="xai")
+    default_audio = "elevenlabs" if os.environ.get("ELEVENLABS_API_KEY") else "xai"
+    p.add_argument("--stt", choices=["xai", "elevenlabs"], default=default_audio,
+                   help="기본: ELEVENLABS_API_KEY가 있으면 elevenlabs, 없으면 xai")
     p.add_argument("--llm", choices=["grok", "claude"], default="grok")
-    p.add_argument("--tts", choices=["xai", "elevenlabs"], default="xai")
+    p.add_argument("--tts", choices=["xai", "elevenlabs"], default=default_audio)
     p.add_argument("--turns", type=int, default=1)
     p.add_argument("--language", default=None, help="STT 언어 힌트 (예: ko). 기본: 자동 감지")
     p.add_argument("--vad-threshold", type=float, default=500, help="발화 감지 RMS 임계값")

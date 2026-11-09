@@ -120,7 +120,6 @@ class ElevenLabsTTS:
                 "openinference.span.kind": "LLM",
                 "llm.provider": "elevenlabs",
                 "llm.model_name": self.model_id,
-                "input.value": text,
                 "tts.provider": "elevenlabs",
                 "tts.model_id": self.model_id,
                 "tts.voice_id": self.voice_id,
@@ -149,7 +148,7 @@ class ElevenLabsTTS:
                 span.set_attribute("output.audio.url", uri)
                 span.set_attribute("output.audio.mime_type", "audio/wav")
                 span.set_attribute("output.audio.transcript", text)
-            span.set_attribute("output.value", text)
+            # input/output.value는 넣지 않음: 있으면 Arize가 오디오 플레이어 대신 텍스트 뷰를 보여줌
             span.set_status(Status(StatusCode.OK))
         except BaseException as e:  # 취소(끼어들기) 포함
             span.set_status(Status(StatusCode.ERROR, description=type(e).__name__))
