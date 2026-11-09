@@ -6,7 +6,7 @@ input.audio.transcript '내용'의 감정을 판단한다. (톤 평가는 evalua
 실행:
   .venv/bin/python sentiment_eval.py              # 최근 1시간, 결과 출력만 (dry run)
   .venv/bin/python sentiment_eval.py --hours 24   # 조회 범위 변경
-  .venv/bin/python sentiment_eval.py --log        # Arize 스팬에 eval.sentiment.* 기록
+  .venv/bin/python sentiment_eval.py --log        # Arize 스팬에 eval.transcript_sentiment.* 기록
 """
 import argparse
 import os
@@ -83,9 +83,9 @@ def main():
         print(f"  {s['context.span_id']}  {r.label:<8}  {s[col]!s:.30}  — {r.explanation}")
         rows.append({
             "context.span_id": s["context.span_id"],
-            "eval.sentiment.label": r.label,
-            "eval.sentiment.score": SCORES[r.label],
-            "eval.sentiment.explanation": r.explanation,
+            "eval.transcript_sentiment.label": r.label,
+            "eval.transcript_sentiment.score": SCORES[r.label],
+            "eval.transcript_sentiment.explanation": r.explanation,
         })
 
     if not rows:
